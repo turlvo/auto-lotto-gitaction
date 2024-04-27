@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import json
 from datetime import datetime, timedelta
 from typing import List
 
@@ -13,10 +14,13 @@ RUN_FILE_NAME = sys.argv[0]
 USER_ID = sys.argv[1]
 USER_PW = sys.argv[2]
 
-# SLACK 설정
-SLACK_API_URL = "https://slack.com/api/chat.postMessage"
-SLACK_BOT_TOKEN = sys.argv[3]
-SLACK_CHANNEL = sys.argv[4]
+GITHUB_TOKEN = sys.argv[3]
+
+
+# GITHUB
+GITHUB_OWNER = sys.argv[4]
+GITHUB_REPO = sys.argv[5]
+GITHUB_ISSUE_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/issues"
 
 
 def __get_now() -> datetime:
@@ -36,19 +40,20 @@ def __check_lucky_number(lucky_numbers: List[str], my_numbers: List[str]) -> str
     return return_msg
 
 
-def hook_slack(message: str) -> Response:
-    korea_time_str = __get_now().strftime("%Y-%m-%d %H:%M:%S")
-
+def hook_github_issue(title: str, content: str, label: str) -> Response:
     payload = {
-        "text": f"> {korea_time_str} *로또 자동 구매 봇 알림* \n{message}",
-        "channel": SLACK_CHANNEL,
+        "title": title,
+        "body": content,
+        "labels": [label]
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+        "Authorization": "Bearer "+ GITHUB_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
     }
-    res = post(SLACK_API_URL, json=payload, headers=headers)
-    return res
+    res = post(GITHUB_ISSUE_URL, data=json.dumps(payload), headers=headers)
+    return res 
 
 
 def run(playwright: Playwright) -> None:
@@ -78,7 +83,6 @@ def run(playwright: Playwright) -> None:
             result_info = page.query_selector("#article div.content")
             retry_cnt += 1
         result_info = result_info.inner_text().split("이전")[0].replace("\n", " ")
-        hook_slack(f"로또 결과: {result_info}")
 
         # 번호 추출하기
         # last index가 보너스 번호
@@ -112,21 +116,28 @@ def run(playwright: Playwright) -> None:
             url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
         )
         result_msg = ""
+        win_cnt = 0
         for result in page.query_selector_all("div.selected li"):
             # 0번째 index에 기호와 당첨/낙첨 여부 포함
             my_lucky_number = result.inner_text().split("\n")
+
+            if my_lucky_number[0] == '당첨':
+                win_cnt = win_cnt + 1
+
             result_msg += (
                 my_lucky_number[0]
                 + __check_lucky_number(lucky_number, my_lucky_number[1:])
                 + "\n"
             )
-        hook_slack(f"> 이번주 나의 행운의 번호 결과는?!?!?!\n{result_msg}")
+
+        title = __get_now().date().strftime("%Y-%m-%d")
+        hook_github_issue(title, result_msg, ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+
 
         # End of Selenium
         context.close()
         browser.close()
     except Exception as exc:
-        hook_slack(exc)
         context.close()
         browser.close()
         raise exc
