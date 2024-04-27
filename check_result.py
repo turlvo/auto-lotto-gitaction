@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timedelta
 from typing import List
 
-from requests import post, Response
+from requests import post, get, patch, Response
 from playwright.sync_api import Playwright, sync_playwright
 
 RUN_FILE_NAME = sys.argv[0]
@@ -14,10 +14,8 @@ RUN_FILE_NAME = sys.argv[0]
 USER_ID = sys.argv[1]
 USER_PW = sys.argv[2]
 
-GITHUB_TOKEN = sys.argv[3]
-
-
 # GITHUB
+GITHUB_TOKEN = sys.argv[3]
 GITHUB_OWNER = sys.argv[4]
 GITHUB_REPO = sys.argv[5]
 GITHUB_ISSUE_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/issues"
@@ -40,7 +38,18 @@ def __check_lucky_number(lucky_numbers: List[str], my_numbers: List[str]) -> str
     return return_msg
 
 
-def hook_github_issue(title: str, content: str, label: str) -> Response:
+def hook_github_get_issues() -> Response:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer "+ GITHUB_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+    res = get(GITHUB_ISSUE_URL, headers=headers)
+    return res
+
+
+def hook_github_create_issue(title: str, content: str, label: str) -> Response:
     payload = {
         "title": title,
         "body": content,
@@ -53,11 +62,33 @@ def hook_github_issue(title: str, content: str, label: str) -> Response:
         "X-GitHub-Api-Version": "2022-11-28"
     }
     res = post(GITHUB_ISSUE_URL, data=json.dumps(payload), headers=headers)
-    return res 
+    return res
 
+
+def hook_github_update_issue(number: str, title: str, content: str, label: str) -> Response:
+    payload = {
+        "title": title,
+        "body": content,
+        "labels": [label]
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer "+ GITHUB_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+    res = patch(GITHUB_ISSUE_URL + f"/{number}", data=json.dumps(payload), headers=headers)
+    return res
 
 def run(playwright: Playwright) -> None:
     try:
+        issues_list = hook_github_get_issues().json()
+        if len(issues_list) == 0:
+            return
+
+        if len(issues_list[0]["labels"]) > 0 and issues_list[0]["labels"][0]["name"] != ":hourglass:":
+            return
+
         browser = playwright.chromium.launch(headless=True)  # chrome 브라우저를 실행
         context = browser.new_context()
 
@@ -130,8 +161,8 @@ def run(playwright: Playwright) -> None:
                 + "\n"
             )
 
-        title = __get_now().date().strftime("%Y-%m-%d")
-        hook_github_issue(title, result_msg, ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+        hook_github_update_issue(issues_list[0]['number'], issues_list[0]['title'], issues_list[0]['body'], ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+        # hook_github_create_issue(title, result_msg, ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
 
 
         # End of Selenium

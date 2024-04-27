@@ -31,11 +31,10 @@
 ![](./imgs/img1.png)
 
 #### 5. 시크릿값은 아래 사진 참고
-
 ![](./imgs/img2.png)
 
-- slack bot token은 `xoxb` 로 시작하는, bot OAuth token값이다.
-- slack channel 값은 추가한 slack bot을 초대한 그 채널값이 필요하다.
+- GIT_OWNER는 Github id
+- GIT_REPO_NAME은 지금 repository 명 ex) `auto-lotto-gitaction`
 - BUY_COUNT가 구매할 복권 수 세팅 값이다.
 - 그 외 user값은 https://dhlottery.co.kr/common.do?method=main 여기 회원가입한 정보를 넣자. **_절대 절대 절대 노출 안되게 조심_**
 
@@ -43,13 +42,15 @@
 
 ![](./imgs/img3.png)
 
-- 러닝할 때 구매가능 여부 부터 체크 해야한다! 구매 가능한 시간대가 아니라면 Timeout error가 날 수 있다.
+- 구입 완료 / 에러시에 `Issues`에 새로운 issue가 등록 된다
 
 #### 7. `action-result.yml` 은 이제 발표된 추첨 번호를 slack을 통해 전달해준다. 20시 35분경 발표가 나는 점, 업데이트가 나중에 되는점을 참작해 21시 50분경에 러닝하게 했다.
 
 ![](./imgs/img4.png)
+![](./imgs/img5.png)
 
-- 당첨 하이라이팅을 제대로 하고 싶으나, 당첨 히스토리가 없어서 만들지 못하고 있다..
+- 추첨 결과를 Issue Label로 추가해줌
+- 하나라도 당첨시 🎉, 낙첨시 ☠️
 
 ## To develop something more in the local
 

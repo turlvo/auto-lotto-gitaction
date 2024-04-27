@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import json
 from datetime import datetime, timedelta
 
 from requests import post, Response
@@ -12,13 +13,14 @@ RUN_FILE_NAME = sys.argv[0]
 USER_ID = sys.argv[1]
 USER_PW = sys.argv[2]
 
-# SLACK 설정
-SLACK_API_URL = "https://slack.com/api/chat.postMessage"
-SLACK_BOT_TOKEN = sys.argv[3]
-SLACK_CHANNEL = sys.argv[4]
-
 # 구매 개수를 설정
 COUNT = sys.argv[5]
+
+# GITHUB
+GITHUB_TOKEN = sys.argv[3]
+GITHUB_OWNER = sys.argv[4]
+GITHUB_REPO = sys.argv[5]
+GITHUB_ISSUE_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/issues"
 
 
 class BalanceError(Exception):
@@ -38,59 +40,23 @@ def __get_now() -> datetime:
     return now_korea
 
 
-def hook_slack(message: str) -> Response:
-    korea_time_str = __get_now().strftime("%Y-%m-%d %H:%M:%S")
+def hook_github_create_issue(title: str, content: str, label: str) -> Response:
     payload = {
-        "text": f"> {korea_time_str} *로또 자동 구매 봇 알림* \n{message}",
-        "channel": SLACK_CHANNEL,
+        "title": title,
+        "body": content,
+        "labels": [label]
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+        "Authorization": "Bearer "+ GITHUB_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
     }
-    res = post(SLACK_API_URL, json=payload, headers=headers)
-    return res
-
-
-def hook_slack_btn() -> Response:
-    korea_time_str = __get_now().strftime("%Y-%m-%d %H:%M:%S")
-    payload = {
-        "channel": SLACK_CHANNEL,
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"> {korea_time_str} *로또 자동 구매 봇 알림* \n예치금이 부족합니다! 충전을 해주세요!",
-                },
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "충전하러 가기",  # 버튼에 표시될 텍스트
-                            "emoji": True,
-                        },
-                        "url": "https://dhlottery.co.kr/payment.do?method=payment",  # 사용자를 리디렉션할 URL
-                        "action_id": "button_action",
-                    }
-                ],
-            },
-        ],
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
-    }
-    res = post(SLACK_API_URL, json=payload, headers=headers)
+    res = post(GITHUB_ISSUE_URL, data=json.dumps(payload), headers=headers)
     return res
 
 
 def run(playwright: Playwright) -> None:
-    # hook_slack(f"{COUNT}개 자동 복권 구매 시작합니다!")
     try:
         browser = playwright.chromium.launch(headless=True)  # chrome 브라우저를 실행
         context = browser.new_context()
@@ -109,13 +75,15 @@ def run(playwright: Playwright) -> None:
             page.press('form[name="jform"] >> text=로그인', "Enter")
         time.sleep(4)
 
+        now_print_date = __get_now().date().strftime("%Y-%m-%d")
+
+
         # 로그인 이후 기본 정보 체크 & 예치금 알림
         page.goto("https://dhlottery.co.kr/common.do?method=main")
         money_info = page.query_selector("ul.information").inner_text()
         money_info: str = money_info.split("\n")
         user_name = money_info[0]
         money_info: int = int(money_info[2].replace(",", "").replace("원", ""))
-        hook_slack(f"로그인 사용자: {user_name}, 예치금: {money_info}")
 
         # 예치금 잔액 부족 미리 exception
         if 1000 * int(COUNT) > money_info:
@@ -137,9 +105,6 @@ def run(playwright: Playwright) -> None:
         page.click('input[name="closeLayer"]')
         # assert page.url == "https://el.dhlottery.co.kr/game/TotalGame.jsp?LottoId=LO40"
 
-        hook_slack(
-            f"{COUNT}개 복권 구매 성공! \n자세하게 확인하기: https://dhlottery.co.kr/myPage.do?method=notScratchListView"
-        )
 
         # 오늘 구매한 복권 결과
         now_date = __get_now().date().strftime("%Y%m%d")
@@ -156,11 +121,16 @@ def run(playwright: Playwright) -> None:
         result_msg = ""
         for result in page.query_selector_all("div.selected li"):
             result_msg += ", ".join(result.inner_text().split("\n")) + "\n"
-        hook_slack(f"이번주 나의 행운의 번호는?!\n{result_msg}")
+
+        issue_content = f"로그인 사용자: {user_name}, 예치금: {money_info}\n" +  f"{COUNT}개 복권 구매 성공! \n자세하게 확인하기: https://dhlottery.co.kr/myPage.do?method=notScratchListView" + f"이번주 나의 행운의 번호는?!\n{result_msg}"
+        hook_github_create_issue(now_print_date, issue_content, ":hourglass:")
+
     except BalanceError:
-        hook_slack_btn()
+        issue_content = "예치금 부족으로 구매 실패\n" + f"로그인 사용자: {user_name}, 예치금: {money_info}"
+        hook_github_create_issue(now_print_date, issue_content, ":exclamation:")
+
     except Exception as exc:
-        hook_slack(exc)
+        hook_github_create_issue(now_print_date, str(exec), ":exclamation:")
     finally:
         # End of Selenium
         context.close()
