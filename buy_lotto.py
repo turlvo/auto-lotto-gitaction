@@ -14,12 +14,12 @@ USER_ID = sys.argv[1]
 USER_PW = sys.argv[2]
 
 # 구매 개수를 설정
-COUNT = sys.argv[5]
+COUNT = sys.argv[3]
 
 # GITHUB
-GITHUB_TOKEN = sys.argv[3]
-GITHUB_OWNER = sys.argv[4]
-GITHUB_REPO = sys.argv[5]
+GITHUB_TOKEN = sys.argv[4]
+GITHUB_OWNER = sys.argv[5]
+GITHUB_REPO = sys.argv[6]
 GITHUB_ISSUE_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/issues"
 
 
