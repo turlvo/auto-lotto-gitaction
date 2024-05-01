@@ -41,4 +41,4 @@ jobs:
 
       - name: Run for buying Lotto!
         run: |
-          python ./buy_lotto.py ${{secrets.USER_ID}} ${{secrets.USER_PW}} ${{secrets.SLACK_BOT_TOKEN}} ${{secrets.SLACK_CHANNEL}} ${{secrets.BUY_COUNT}}
+          python ./buy_lotto.py ${{secrets.USER_ID}} ${{secrets.USER_PW}} ${{secrets.BUY_COUNT}} ${{secrets.GITHUB_TOKEN}} ${{secrets.GIT_OWNER}} ${{secrets.GIT_REPO_NAME}}
