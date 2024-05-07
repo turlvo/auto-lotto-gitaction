@@ -127,7 +127,9 @@ def run(playwright: Playwright) -> None:
         lucky_number = lucky_number.split(",")
 
         # 오늘 구매한 복권 결과
-        now_date = __get_now().date().strftime("%Y%m%d")
+        #now_date = __get_now().date().strftime("%Y%m%d")
+        now_date = issues_list[0]['title'].replace("-", "")
+        print(now_date)
         page.goto(
             url=f"https://dhlottery.co.kr/myPage.do?method=lottoBuyList&searchStartDate={now_date}&searchEndDate={now_date}&lottoId=&nowPage=1"
         )
