@@ -105,15 +105,13 @@ def run(playwright: Playwright) -> None:
         page.click('input[name="closeLayer"]')
         # assert page.url == "https://el.dhlottery.co.kr/game/TotalGame.jsp?LottoId=LO40"
 
-
         # 오늘 구매한 복권 결과
-        now_date = __get_now().date().strftime("%Y%m%d")
-        page.goto(
-            url=f"https://dhlottery.co.kr/myPage.do?method=lottoBuyList&searchStartDate={now_date}&searchEndDate={now_date}&lottoId=&nowPage=1"
-        )
-        a_tag_href = page.query_selector(
-            "tbody > tr:nth-child(1) > td:nth-child(4) > a"
-        ).get_attribute("href")
+        page.goto(url="https://dhlottery.co.kr/myPage.do?method=lottoBuyListView")
+        page.get_by_role("link", name="조회", exact=True).click()
+        time.sleep(2)
+
+        iframe = page.frame_locator('iframe').first
+        a_tag_href = iframe.locator("[title=\"새창 열림\"]").get_attribute("href")
         detail_info = re.findall(r"\d+", a_tag_href)
         page.goto(
             url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
@@ -122,7 +120,7 @@ def run(playwright: Playwright) -> None:
         for result in page.query_selector_all("div.selected li"):
             result_msg += ", ".join(result.inner_text().split("\n")) + "\n"
 
-        issue_content = f"로그인 사용자: {user_name}, 예치금: {money_info}\n" +  f"{COUNT}개 복권 구매 성공! \n자세하게 확인하기: https://dhlottery.co.kr/myPage.do?method=notScratchListView" + f"이번주 나의 행운의 번호는?!\n{result_msg}"
+        issue_content = f"로그인 사용자: {user_name}, 예치금: {money_info}\n" +  f"{COUNT}개 복권 구매 성공! \n자세하게 확인하기: https://dhlottery.co.kr/myPage.do?method=notScratchListView" + f" 이번주 나의 행운의 번호는?!\n{result_msg}"
         hook_github_create_issue(now_print_date, issue_content, ":hourglass:")
 
     except BalanceError:
@@ -130,7 +128,7 @@ def run(playwright: Playwright) -> None:
         hook_github_create_issue(now_print_date, issue_content, ":exclamation:")
 
     except Exception as exc:
-        hook_github_create_issue(now_print_date, str(exec), ":exclamation:")
+        hook_github_create_issue(now_print_date, str(exc), ":exclamation:")
     finally:
         # End of Selenium
         context.close()
