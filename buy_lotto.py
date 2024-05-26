@@ -43,7 +43,7 @@ def __get_now() -> datetime:
 def hook_github_create_issue(title: str, content: str, label: str) -> Response:
     payload = {
         "title": title,
-        "body": content,
+        "body": f"@{GITHUB_OWNER}\n" + content,
         "labels": [label]
     }
     headers = {
