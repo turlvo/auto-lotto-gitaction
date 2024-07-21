@@ -16,7 +16,7 @@
 - **_예치금 필요합니다._**
 
 ## GETTING START
-
+ 
 #### 1. `fork`를 한다!
 
 #### 2. `fork`한 repo를 `git clone` 한다.
