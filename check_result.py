@@ -154,7 +154,7 @@ def run(playwright: Playwright) -> None:
             # 0번째 index에 기호와 당첨/낙첨 여부 포함
             my_lucky_number = result.inner_text().split("\n")
 
-            if my_lucky_number[0] == '당첨':
+            if my_lucky_number[0] != '(낙첨)':
                 win_cnt = win_cnt + 1
 
             result_msg += (
