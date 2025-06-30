@@ -84,116 +84,214 @@ def hook_github_update_issue(number: str, title: str, content: str, label: str) 
     res = patch(GITHUB_ISSUE_URL + f"/{number}", data=json.dumps(payload), headers=headers)
     return res
 
+# def run(playwright: Playwright) -> None:
+#     try:
+#         issues_list = hook_github_get_issues().json()
+#         if len(issues_list) == 0:
+#             return
+
+#         if len(issues_list[0]["labels"]) > 0 and issues_list[0]["labels"][0]["name"] != ":hourglass:":
+#             return
+
+#         browser = playwright.chromium.launch(headless=True)  # chrome 브라우저를 실행
+#         context = browser.new_context()
+
+#         page = context.new_page()
+#         page.goto("https://dhlottery.co.kr/user.do?method=login")
+#         page.click('[placeholder="아이디"]')
+#         page.fill('[placeholder="아이디"]', USER_ID)
+#         page.press('[placeholder="아이디"]', "Tab")
+#         page.fill('[placeholder="비밀번호"]', USER_PW)
+#         page.press('[placeholder="비밀번호"]', "Tab")
+
+#         # Press Enter
+#         # with page.expect_navigation(url="https://ol.dhlottery.co.kr/olotto/game/game645.do"):
+#         with page.expect_navigation():
+#             page.press('form[name="jform"] >> text=로그인', "Enter")
+#         time.sleep(4)
+
+#         # 당첨 결과 및 번호 확인, parsing issue 때문에 3중 retry
+#         page.goto("https://dhlottery.co.kr/common.do?method=main")
+#         retry_cnt = 0
+#         result_info = page.query_selector("#article div.content")
+#         while not result_info and retry_cnt < 3:
+#             result_info = page.query_selector("#article div.content")
+#             retry_cnt += 1
+#         result_info = result_info.inner_text().split("이전")[0].replace("\n", " ")
+
+#         # 번호 추출하기
+#         # last index가 보너스 번호
+#         lucky_number = (
+#             result_info.split("당첨번호")[-1]
+#             .split("1등")[0]
+#             .strip()
+#             .replace("보너스번호 ", "")
+#             .replace(" ", ",")
+#         )
+#         lucky_number = lucky_number.split(",")
+
+#         # 오늘 구매한 복권 결과
+#         #now_date = __get_now().date().strftime("%Y%m%d")
+#         now_date = issues_list[0]['title'].replace("-", "")
+#         print(now_date)
+#         page.goto(
+#             url=f"https://dhlottery.co.kr/myPage.do?method=lottoBuyList&searchStartDate={now_date}&searchEndDate={now_date}&lottoId=&nowPage=1"
+#         )
+
+#         # 날짜 잘못 잡음
+#         try:
+#             a_tag_href = page.query_selector(
+#                 "tbody > tr:nth-child(1) > td:nth-child(4) > a"
+#             ).get_attribute("href")
+#         except AttributeError as exc:
+#             raise Exception(
+#                 f"{exc} 에러 발생했습니다. now_date 값이 잘못세팅된 것 같습니다. 구매한 복권의 날짜와 결과 체크의 날짜가 동일한가요?"
+#             )
+
+#         detail_info = re.findall(r"\d+", a_tag_href)
+#         page.goto(
+#             url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
+#         )
+#         result_msg = ""
+#         win_cnt = 0
+#         # for result in page.query_selector_all("div.selected li"):
+#         #     # 0번째 index에 기호와 당첨/낙첨 여부 포함
+#         #     my_lucky_number = result.inner_text().split("\n")
+
+#         #     if my_lucky_number[0] != '(낙첨)':
+#         #         win_cnt = win_cnt + 1
+
+#         #     result_msg += (
+#         #         my_lucky_number[0]
+#         #         + __check_lucky_number(lucky_number, my_lucky_number[1:])
+#         #         + "\n"
+#         #     )
+#         for result in page.query_selector_all("div.selected li"):
+#             my_lucky_number = result.inner_text().split("\n")
+#             # 참고: inner_text는 ['A', '자동 (낙첨)', '4', '19', '23', '30', '32', '41'] 같은 구조
+        
+#             status = my_lucky_number[1] if len(my_lucky_number) > 1 else ''
+#             numbers = my_lucky_number[2:]
+        
+#             if '낙첨' not in status:
+#                 win_cnt += 1
+        
+#             result_msg += (
+#                 f"{my_lucky_number[0]} - {status} - "
+#                 + __check_lucky_number(lucky_number, numbers)
+#                 + "\n"
+#             )
+
+#         hook_github_update_issue(issues_list[0]['number'], issues_list[0]['title'], issues_list[0]['body'], ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+#         # hook_github_create_issue(title, result_msg, ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+
+
+#         # End of Selenium
+#         context.close()
+#         browser.close()
+#     except Exception as exc:
+#         context.close()
+#         browser.close()
+#         raise exc
+
 def run(playwright: Playwright) -> None:
     try:
         issues_list = hook_github_get_issues().json()
-        if len(issues_list) == 0:
+        if not issues_list:
             return
 
-        if len(issues_list[0]["labels"]) > 0 and issues_list[0]["labels"][0]["name"] != ":hourglass:":
-            return
+        for issue in issues_list:
+            labels = [label["name"] for label in issue.get("labels", [])]
+            if ":hourglass:" not in labels:
+                continue  # ⏳ 없는 이슈는 skip
 
-        browser = playwright.chromium.launch(headless=True)  # chrome 브라우저를 실행
-        context = browser.new_context()
+            now_date = issue["title"].replace("-", "")
+            print(f"▶ 처리 중: #{issue['number']} {now_date}")
 
-        page = context.new_page()
-        page.goto("https://dhlottery.co.kr/user.do?method=login")
-        page.click('[placeholder="아이디"]')
-        page.fill('[placeholder="아이디"]', USER_ID)
-        page.press('[placeholder="아이디"]', "Tab")
-        page.fill('[placeholder="비밀번호"]', USER_PW)
-        page.press('[placeholder="비밀번호"]', "Tab")
+            browser = playwright.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
 
-        # Press Enter
-        # with page.expect_navigation(url="https://ol.dhlottery.co.kr/olotto/game/game645.do"):
-        with page.expect_navigation():
-            page.press('form[name="jform"] >> text=로그인', "Enter")
-        time.sleep(4)
+            # 로그인
+            page.goto("https://dhlottery.co.kr/user.do?method=login")
+            page.fill('[placeholder="아이디"]', USER_ID)
+            page.press('[placeholder="아이디"]', "Tab")
+            page.fill('[placeholder="비밀번호"]', USER_PW)
+            page.press('[placeholder="비밀번호"]', "Tab")
+            with page.expect_navigation():
+                page.press('form[name="jform"] >> text=로그인', "Enter")
+            time.sleep(4)
 
-        # 당첨 결과 및 번호 확인, parsing issue 때문에 3중 retry
-        page.goto("https://dhlottery.co.kr/common.do?method=main")
-        retry_cnt = 0
-        result_info = page.query_selector("#article div.content")
-        while not result_info and retry_cnt < 3:
-            result_info = page.query_selector("#article div.content")
-            retry_cnt += 1
-        result_info = result_info.inner_text().split("이전")[0].replace("\n", " ")
+            # 당첨 번호 추출
+            page.goto("https://dhlottery.co.kr/common.do?method=main")
+            result_info = None
+            for _ in range(3):
+                result_info = page.query_selector("#article div.content")
+                if result_info:
+                    break
+            if not result_info:
+                raise Exception("당첨 정보 파싱 실패")
+            result_text = result_info.inner_text().split("이전")[0].replace("\n", " ")
+            lucky_number = (
+                result_text.split("당첨번호")[-1]
+                .split("1등")[0]
+                .strip()
+                .replace("보너스번호 ", "")
+                .replace(" ", ",")
+            ).split(",")
 
-        # 번호 추출하기
-        # last index가 보너스 번호
-        lucky_number = (
-            result_info.split("당첨번호")[-1]
-            .split("1등")[0]
-            .strip()
-            .replace("보너스번호 ", "")
-            .replace(" ", ",")
-        )
-        lucky_number = lucky_number.split(",")
+            # 구매 복권 내역 조회
+            page.goto(
+                url=f"https://dhlottery.co.kr/myPage.do?method=lottoBuyList&searchStartDate={now_date}&searchEndDate={now_date}&lottoId=&nowPage=1"
+            )
+            try:
+                a_tag_href = page.query_selector(
+                    "tbody > tr:nth-child(1) > td:nth-child(4) > a"
+                ).get_attribute("href")
+            except:
+                print(f"📛 날짜 {now_date} 에 구매 내역 없음")
+                context.close()
+                browser.close()
+                continue
 
-        # 오늘 구매한 복권 결과
-        #now_date = __get_now().date().strftime("%Y%m%d")
-        now_date = issues_list[0]['title'].replace("-", "")
-        print(now_date)
-        page.goto(
-            url=f"https://dhlottery.co.kr/myPage.do?method=lottoBuyList&searchStartDate={now_date}&searchEndDate={now_date}&lottoId=&nowPage=1"
-        )
-
-        # 날짜 잘못 잡음
-        try:
-            a_tag_href = page.query_selector(
-                "tbody > tr:nth-child(1) > td:nth-child(4) > a"
-            ).get_attribute("href")
-        except AttributeError as exc:
-            raise Exception(
-                f"{exc} 에러 발생했습니다. now_date 값이 잘못세팅된 것 같습니다. 구매한 복권의 날짜와 결과 체크의 날짜가 동일한가요?"
+            detail_info = re.findall(r"\d+", a_tag_href)
+            page.goto(
+                url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
             )
 
-        detail_info = re.findall(r"\d+", a_tag_href)
-        page.goto(
-            url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
-        )
-        result_msg = ""
-        win_cnt = 0
-        # for result in page.query_selector_all("div.selected li"):
-        #     # 0번째 index에 기호와 당첨/낙첨 여부 포함
-        #     my_lucky_number = result.inner_text().split("\n")
+            result_msg = ""
+            win_cnt = 0
 
-        #     if my_lucky_number[0] != '(낙첨)':
-        #         win_cnt = win_cnt + 1
+            for result in page.query_selector_all("div.selected li"):
+                my_lucky_number = result.inner_text().split("\n")
+                # 예: ['A', '자동 (낙첨)', '4', '19', '23', '30', '32', '41']
+                status_line = next((s for s in my_lucky_number if '(낙첨)' in s or '(당첨)' in s), '')
+                is_winner = '낙첨' not in status_line
+                numbers = my_lucky_number[2:]  # 숫자 부분만 추출
 
-        #     result_msg += (
-        #         my_lucky_number[0]
-        #         + __check_lucky_number(lucky_number, my_lucky_number[1:])
-        #         + "\n"
-        #     )
-        for result in page.query_selector_all("div.selected li"):
-            my_lucky_number = result.inner_text().split("\n")
-            # 참고: inner_text는 ['A', '자동 (낙첨)', '4', '19', '23', '30', '32', '41'] 같은 구조
-        
-            status = my_lucky_number[1] if len(my_lucky_number) > 1 else ''
-            numbers = my_lucky_number[2:]
-        
-            if '낙첨' not in status:
-                win_cnt += 1
-        
-            result_msg += (
-                f"{my_lucky_number[0]} - {status} - "
-                + __check_lucky_number(lucky_number, numbers)
-                + "\n"
+                if is_winner:
+                    win_cnt += 1
+
+                result_msg += f"{my_lucky_number[0]} - {status_line} - " + __check_lucky_number(lucky_number, numbers) + "\n"
+
+            # GitHub 이슈 상태 업데이트
+            hook_github_update_issue(
+                issue["number"],
+                issue["title"],
+                result_msg.strip(),
+                ":tada:" if win_cnt > 0 else ":skull_and_crossbones:"
             )
 
-        hook_github_update_issue(issues_list[0]['number'], issues_list[0]['title'], issues_list[0]['body'], ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
-        # hook_github_create_issue(title, result_msg, ":tada:" if win_cnt > 0 else ":skull_and_crossbones:")
+            context.close()
+            browser.close()
 
-
-        # End of Selenium
-        context.close()
-        browser.close()
     except Exception as exc:
-        context.close()
-        browser.close()
+        try:
+            context.close()
+            browser.close()
+        except:
+            pass
         raise exc
-
 
 with sync_playwright() as playwright:
     run(playwright)
