@@ -232,6 +232,19 @@ def run(playwright: Playwright) -> None:
             if not result_info:
                 raise Exception("당첨 정보 파싱 실패")
             result_text = result_info.inner_text().split("이전")[0].replace("\n", " ")
+
+            # 추첨일 확인
+            draw_date_match = re.search(r"추 첨 일\s*:\s*(\d{4}/\d{2}/\d{2})", result_text)
+            if draw_date_match:
+                draw_date_str = draw_date_match.group(1)
+                draw_date = datetime.strptime(draw_date_str, "%Y/%m/%d").date()
+                today = datetime.now().date()
+                if draw_date > today:
+                    print(f"⏳ 아직 추첨 전입니다 ({draw_date_str}) - skip")
+                    context.close()
+                    browser.close()
+                    return
+
             lucky_number = (
                 result_text.split("당첨번호")[-1]
                 .split("1등")[0]
