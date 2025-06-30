@@ -260,27 +260,17 @@ def run(playwright: Playwright) -> None:
                 url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
             )
             
-            # 추첨일 텍스트 가져오기
-            detail_html = page.inner_text("#article")  # 또는 적절한 selector
-            
-            draw_date_match = re.search(r"추\s*첨\s*일\s*:\s*(\d{4}[-./]\d{2}[-./]\d{2})", detail_html)
+            # 추첨일 추출
+            draw_date_raw = page.locator("ul >> li").filter(has_text="추 첨 일").first.inner_text()
+            # draw_date_raw 예: "추 첨 일 : 2025/07/05"
+            draw_date_match = re.search(r"\d{4}/\d{2}/\d{2}", draw_date_raw)
             if draw_date_match:
-                draw_date_str = draw_date_match.group(1)
-                for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d"):
-                    try:
-                        draw_date = datetime.strptime(draw_date_str, fmt).date()
-                        break
-                    except ValueError:
-                        continue
-                else:
-                    print(f"❌ 날짜 파싱 실패: {draw_date_str}")
-                    context.close()
-                    browser.close()
-                    return
-            
+                draw_date = datetime.strptime(draw_date_match.group(), "%Y/%m/%d").date()
                 today = datetime.now().date()
-                if draw_date > today:
-                    print(f"⏳ 아직 추첨 전입니다 ({draw_date_str}) - skip")
+                this_sunday = today + timedelta(days=(6 - today.weekday()))  # 이번 주 일요일
+            
+                if draw_date != this_sunday:
+                    print(f"⏳ 이번 주 추첨이 아님 ({draw_date}) - skip")
                     context.close()
                     browser.close()
                     return
