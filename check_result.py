@@ -285,7 +285,7 @@ def run(playwright: Playwright) -> None:
                 if is_winner:
                     win_cnt += 1
 
-                result_msg += f"{my_lucky_number[0]} - {status_line} - " + __check_lucky_number(lucky_number, numbers) + "\n"
+                result_msg += f"{my_lucky_number[0]}" + "\n"
 
             # GitHub 이슈 상태 업데이트
             hook_github_update_issue(
