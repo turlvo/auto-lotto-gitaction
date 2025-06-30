@@ -233,18 +233,6 @@ def run(playwright: Playwright) -> None:
                 raise Exception("당첨 정보 파싱 실패")
             result_text = result_info.inner_text().split("이전")[0].replace("\n", " ")
 
-            # 추첨일 확인
-            draw_date_match = re.search(r"추 첨 일\s*:\s*(\d{4}/\d{2}/\d{2})", result_text)
-            if draw_date_match:
-                draw_date_str = draw_date_match.group(1)
-                draw_date = datetime.strptime(draw_date_str, "%Y/%m/%d").date()
-                today = datetime.now().date()
-                if draw_date > today:
-                    print(f"⏳ 아직 추첨 전입니다 ({draw_date_str}) - skip")
-                    context.close()
-                    browser.close()
-                    return
-
             lucky_number = (
                 result_text.split("당첨번호")[-1]
                 .split("1등")[0]
@@ -271,6 +259,31 @@ def run(playwright: Playwright) -> None:
             page.goto(
                 url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
             )
+            
+            # 추첨일 텍스트 가져오기
+            detail_html = page.inner_text("#article")  # 또는 적절한 selector
+            
+            draw_date_match = re.search(r"추\s*첨\s*일\s*:\s*(\d{4}[-./]\d{2}[-./]\d{2})", detail_html)
+            if draw_date_match:
+                draw_date_str = draw_date_match.group(1)
+                for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d"):
+                    try:
+                        draw_date = datetime.strptime(draw_date_str, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    print(f"❌ 날짜 파싱 실패: {draw_date_str}")
+                    context.close()
+                    browser.close()
+                    return
+            
+                today = datetime.now().date()
+                if draw_date > today:
+                    print(f"⏳ 아직 추첨 전입니다 ({draw_date_str}) - skip")
+                    context.close()
+                    browser.close()
+                    return
 
             result_msg = ""
             win_cnt = 0
