@@ -28,14 +28,18 @@ def __get_now() -> datetime:
     return now_korea
 
 
-def __check_lucky_number(lucky_numbers: List[str], my_numbers: List[str]) -> str:
-    return_msg = ""
-    for my_num in my_numbers:
-        if my_num in lucky_numbers:
-            return_msg += f" [ {my_num} ] "
-            continue
-        return_msg += f" {my_num} "
-    return return_msg
+# def __check_lucky_number(lucky_numbers: List[str], my_numbers: List[str]) -> str:
+#     return_msg = ""
+#     for my_num in my_numbers:
+#         if my_num in lucky_numbers:
+#             return_msg += f" [ {my_num} ] "
+#             continue
+#         return_msg += f" {my_num} "
+#     return return_msg
+    
+def __check_lucky_number(win_numbers, my_numbers):
+    matched = [n for n in my_numbers if n in win_numbers]
+    return f"{len(matched)}개 일치: {' '.join(matched)}"
 
 
 def hook_github_get_issues() -> Response:
@@ -150,16 +154,31 @@ def run(playwright: Playwright) -> None:
         )
         result_msg = ""
         win_cnt = 0
+        # for result in page.query_selector_all("div.selected li"):
+        #     # 0번째 index에 기호와 당첨/낙첨 여부 포함
+        #     my_lucky_number = result.inner_text().split("\n")
+
+        #     if my_lucky_number[0] != '(낙첨)':
+        #         win_cnt = win_cnt + 1
+
+        #     result_msg += (
+        #         my_lucky_number[0]
+        #         + __check_lucky_number(lucky_number, my_lucky_number[1:])
+        #         + "\n"
+        #     )
         for result in page.query_selector_all("div.selected li"):
-            # 0번째 index에 기호와 당첨/낙첨 여부 포함
             my_lucky_number = result.inner_text().split("\n")
-
-            if my_lucky_number[0] != '(낙첨)':
-                win_cnt = win_cnt + 1
-
+            # 참고: inner_text는 ['A', '자동 (낙첨)', '4', '19', '23', '30', '32', '41'] 같은 구조
+        
+            status = my_lucky_number[1] if len(my_lucky_number) > 1 else ''
+            numbers = my_lucky_number[2:]
+        
+            if '낙첨' not in status:
+                win_cnt += 1
+        
             result_msg += (
-                my_lucky_number[0]
-                + __check_lucky_number(lucky_number, my_lucky_number[1:])
+                f"{my_lucky_number[0]} - {status} - "
+                + __check_lucky_number(lucky_number, numbers)
                 + "\n"
             )
 
