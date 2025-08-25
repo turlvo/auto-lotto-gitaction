@@ -139,6 +139,15 @@ def run(playwright: Playwright) -> None:
             draw_date_match = re.search(r"\d{4}/\d{2}/\d{2}", draw_date_raw)
             if draw_date_match:
                 draw_date = datetime.strptime(draw_date_match.group(), "%Y/%m/%d").date()
+                today = datetime.now().date()
+                
+                # 추첨이 아직 안 된 경우 (미래 날짜) skip
+                if draw_date > today:
+                    print(f"⏳ 아직 추첨 전 ({draw_date}) - skip")
+                    context.close()
+                    browser.close()
+                    continue
+                
                 # 구매일로부터 해당 주의 토요일 계산
                 purchase_date = datetime.strptime(issue["title"], "%Y-%m-%d").date()
                 # 해당 주의 토요일 구하기 (토요일 = weekday 5)
