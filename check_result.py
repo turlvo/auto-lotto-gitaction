@@ -139,11 +139,17 @@ def run(playwright: Playwright) -> None:
             draw_date_match = re.search(r"\d{4}/\d{2}/\d{2}", draw_date_raw)
             if draw_date_match:
                 draw_date = datetime.strptime(draw_date_match.group(), "%Y/%m/%d").date()
-                today = datetime.now().date()
-                this_sunday = today + timedelta(days=(6 - today.weekday()))  # 이번 주 일요일
-            
-                if draw_date != this_sunday:
-                    print(f"⏳ 이번 주 추첨이 아님 ({draw_date}) - skip")
+                # 구매일로부터 해당 주의 토요일 계산
+                purchase_date = datetime.strptime(issue["title"], "%Y-%m-%d").date()
+                # 해당 주의 토요일 구하기 (토요일 = weekday 5)
+                days_until_saturday = (5 - purchase_date.weekday()) % 7
+                if days_until_saturday == 0:  # 이미 토요일인 경우
+                    expected_draw_date = purchase_date
+                else:
+                    expected_draw_date = purchase_date + timedelta(days=days_until_saturday)
+                
+                if draw_date != expected_draw_date:
+                    print(f"⏳ 추첨일 불일치: 예상 {expected_draw_date}, 실제 {draw_date} - skip")
                     context.close()
                     browser.close()
                     continue
