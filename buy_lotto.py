@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timedelta
 
 from requests import post, Response
-from playwright.sync_api import Playwright, sync_playwright
+from playwright.sync_api import Playwright, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 RUN_FILE_NAME = sys.argv[0]
 
@@ -85,24 +85,39 @@ def run(playwright: Playwright) -> None:
         user_name = money_info[0]
         money_info: int = int(money_info[2].replace(",", "").replace("원", ""))
 
+        purchase_total = int(COUNT)
+
         # 예치금 잔액 부족 미리 exception
-        if 1000 * int(COUNT) > money_info:
+        if 1000 * purchase_total > money_info:
             raise BalanceError()
 
         page.goto(url="https://ol.dhlottery.co.kr/olotto/game/game645.do")
         # "비정상적인 방법으로 접속하였습니다. 정상적인 PC 환경에서 접속하여 주시기 바랍니다." 우회하기
         page.locator("#popupLayerAlert").get_by_role("button", name="확인").click()
-        page.click("text=자동번호발급")
 
-        # 구매할 개수를 선택
-        page.select_option("select", str(COUNT))  # Select 1
-        page.click("text=확인")
-        page.click('input:has-text("구매하기")')  # Click input:has-text("구매하기")
-        time.sleep(2)
-        page.click(
-            'text=확인 취소 >> input[type="button"]'
-        )  # Click text=확인 취소 >> input[type="button"]
-        page.click('input[name="closeLayer"]')
+        remaining = purchase_total
+        while remaining > 0:
+            batch = min(5, remaining)
+
+            page.click("text=자동번호발급")
+            page.select_option("select", str(batch))
+            page.click("text=확인")
+            page.click('input:has-text("구매하기")')
+            time.sleep(2)
+            try:
+                page.click('text=확인 취소 >> input[type="button"]', timeout=2000)
+            except PlaywrightTimeoutError:
+                pass
+
+            close_btn = page.locator('input[name="closeLayer"]').first
+            if close_btn.count() > 0 and close_btn.is_visible():
+                try:
+                    close_btn.click(timeout=2000)
+                except PlaywrightTimeoutError:
+                    pass
+
+            remaining -= batch
+
         # assert page.url == "https://el.dhlottery.co.kr/game/TotalGame.jsp?LottoId=LO40"
 
         # 오늘 구매한 복권 결과
@@ -114,13 +129,23 @@ def run(playwright: Playwright) -> None:
         a_tag_href = iframe.locator("[title=\"새창 열림\"]").get_attribute("href")
         detail_info = re.findall(r"\d+", a_tag_href)
         page.goto(
-            url=f"https://dhlottery.co.kr/myPage.do?method=lotto645Detail&orderNo={detail_info[0]}&barcode={detail_info[1]}&issueNo={detail_info[2]}"
+            url=(
+                "https://dhlottery.co.kr/myPage.do?"
+                f"method=lotto645Detail&orderNo={detail_info[0]}"
+                f"&barcode={detail_info[1]}&issueNo={detail_info[2]}"
+            )
         )
         result_msg = ""
         for result in page.query_selector_all("div.selected li"):
             result_msg += ", ".join(result.inner_text().split("\n")) + "\n"
 
-        issue_content = f"로그인 사용자: {user_name}, 예치금: {money_info}\n" +  f"{COUNT}개 복권 구매 성공! \n자세하게 확인하기: https://dhlottery.co.kr/myPage.do?method=notScratchListView" + f" 이번주 나의 행운의 번호는?!\n{result_msg}"
+        issue_content = (
+            f"로그인 사용자: {user_name}, 예치금: {money_info}\n"
+            f"{COUNT}개 복권 구매 성공! \n"
+            "자세하게 확인하기: "
+            "https://dhlottery.co.kr/myPage.do?method=notScratchListView"
+            f" 이번주 나의 행운의 번호는?!\n{result_msg}"
+        )
         hook_github_create_issue(now_print_date, issue_content, ":hourglass:")
 
     except BalanceError:
