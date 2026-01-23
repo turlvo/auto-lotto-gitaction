@@ -125,8 +125,13 @@ def run(playwright: Playwright) -> None:
         page.get_by_role("link", name="조회", exact=True).click()
         time.sleep(2)
 
-        iframe = page.frame_locator('iframe').first
-        a_tag_href = iframe.locator("[title=\"새창 열림\"]").get_attribute("href")
+        iframe_element = page.wait_for_selector("iframe", timeout=10000)
+        iframe = iframe_element.content_frame()
+        if iframe is None:
+            raise RuntimeError("구매내역 iframe 로드 실패")
+
+        link = iframe.wait_for_selector('[title="새창 열림"]', timeout=10000)
+        a_tag_href = link.get_attribute("href")
         detail_info = re.findall(r"\d+", a_tag_href)
         page.goto(
             url=(
